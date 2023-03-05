@@ -101,32 +101,38 @@ def build_length_list(road):
 
 # dijkstra算法
 def dijkstra(G, from_node, to_node):
-    # 初始化
-    dist = {}  # 存储源点到各个点的最短距离
-    prev = {}  # 存储源点到各个点的最短路径上该点的前一个点
-    for node in G:
-        dist[node] = math.inf  # 将源点到各个点的最短距离初始化为无穷大
-        prev[node] = None  # 将源点到各个点的最短路径上该点的前一个点初始化为None
-    dist[from_node] = 0  # 将源点到源点的最短距离初始化为0
-    Q = set(G.keys())  # Q中存储还未求出最短距离的点
-    while Q:  # 若Q非空
-        u = None
-        for node in Q:  # 找出Q中dist最小的点u
-            if u is None or dist[node] < dist[u]:
-                u = node
-        Q.remove(u)  # 从Q中移除u
-        for v in G[u]:  # 更新dist和prev
-            alt = dist[u] + G[u][v]
-            if alt < dist[v]:
-                dist[v] = alt
-                prev[v] = u
-    path = []  # 存储源点到目标点的最短路径
-    u = to_node
-    while prev[u]:  # 从目标点开始，通过prev一直找到源点
-        path.insert(0, u)
-        u = prev[u]
-    path.insert(0, u)
-    return path
+    # 用于存储已经求出最短距离的节点，存储被锁住的点
+    S = []
+    # 用于存储最短距离
+    dis = {}
+    # 用于存储最短路径
+    path = {}
+    # 初始化dis和path
+    for i in G:
+        dis[i] = float('inf')
+        path[i] = []
+    dis[from_node] = 0
+    path[from_node] = [from_node]
+    while len(S) < len(G):
+        # 从未求出最短距离的节点中找出距离最小的节点
+        min_dis = float('inf')
+        for i in dis:
+            if i not in S and dis[i] < min_dis:
+                min_dis = dis[i]
+                u = i
+        S.append(u)
+        # 更新dis和path
+        for i in G[u]:
+            if (dis[u] + G[u][i] < dis[i]) & (i not in S):
+                dis[i] = dis[u] + G[u][i]
+                path[i] = path[u] + [i]
+
+    # 如果S中没有to_node，说明无法到达to_node
+    if to_node not in S:
+        return None, None
+
+    # 这里只返回to_node的最短距离和最短路径, 其实也可以返回所有点的dis和path
+    return dis[to_node], path[to_node]
 
 # 三个点提供经纬度，算夹角
 def get_angle(loc1, loc2, loc3):
@@ -156,17 +162,17 @@ def get_angle(loc1, loc2, loc3):
     return angle
 
 # 优化h()函数，加入方向性
-def betterH(car_speed, road_length, nodeLoc, to_node, next_node, now_node, w = 1):
+def betterH(car_speed, road_length, nodeLoc, to_node, next_node, now_node, w = 10):
     # 计算A，如果now_node,next_node,to_node的夹角<90,则Anexti=w(1+cos(theta)),否则A=1
     if get_angle(nodeLoc[now_node], nodeLoc[next_node], nodeLoc[to_node]) < 90:
         A = w * (1 + math.cos(get_angle(nodeLoc[now_node], nodeLoc[next_node], nodeLoc[to_node])))
     else:
         A = 1
-    A = 1
     # 后续点到终点的距离 单位km
     d = get_distance(nodeLoc[next_node], nodeLoc[to_node])
     H = 1.0/car_speed[now_node][next_node]*(d * A)
     H = H*60/1000
+    # print(H)
     return H
 
 # TODO
@@ -221,17 +227,22 @@ def A_star(G, from_node, to_node, nodeLoc, car_speed, road_length):
             # 如果v不在open表中，加入open表
             if v not in open:
                 open.append(v)
+            # 如果g[v]不存在，那么g[v] = inf
+            if v not in g:
+                g[v] = float('inf')
             # 计算g(n)
-            g[v] = g[u] + G[u][v]
+            if (g[u] + G[u][v] < g[v]) & (v not in close):
+                g[v] = g[u] + G[u][v]
+                # 更新父节点
+                parent[v] = u
             # 计算h(n)
             if v == to_node:
-                h[v] = G[u][v]
+                # h[v] = G[u][v]
+                h[v] = 0
             else:
                 h[v] = betterH(car_speed, road_length, nodeLoc, to_node, now_node=u, next_node=v)
             # 计算f(n)
             f[v] = g[v] + h[v]
-            # 更新父节点
-            parent[v] = u
     # 如果open表为空，说明没有找到路径
     return None
 
@@ -321,7 +332,7 @@ if __name__ == '__main__':
     print('A-star path:', path_A_star)
 
     # dijkstra算法求1-24的最短路径
-    path_dij = dijkstra(graph, 1, 24)
+    dis_dij, path_dij = dijkstra(graph, 1, 24)
     print('dijkstra path:', path_dij)
 
 
